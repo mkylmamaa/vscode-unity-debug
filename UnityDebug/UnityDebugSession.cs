@@ -132,6 +132,7 @@ namespace UnityDebug
 		public override void Attach(Response response, dynamic args)
 		{
 			string name = getString (args, "name");
+			long pid = getInt (args, "pid");
 
 			SendOutput("stdout", "UnityDebug: Searching for Unity process '" + name + "'");
 
@@ -147,18 +148,32 @@ namespace UnityDebug
 				return;
 			}
 
-			if (processes.Length > 1) {
-				SendErrorResponse (response, 8002, "Multiple targets with name '{_name}' running. Unable to connect.", new { _name = name});
-
-				SendOutput("stdout", "UnityDebug: Multiple targets with name '" + name + "' running. Unable to connect");
-
-				foreach(var p in processes)
-					SendOutput("stdout", "UnityDebug: Found Unity process '" + p.Name + "' (" + p.Id + ")\n");
-
-				return;
+			foreach(var p in processes) {
+				SendOutput("stdout", "UnityDebug: Found Unity process '" + p.Name + "' (" + p.Id + ")\n");
 			}
 
-			var process = processes [0];
+			UnityProcessInfo process = null;
+
+			if(pid==0) {
+			   	if(processes.Length > 1) {
+					SendErrorResponse (response, 8002, "Multiple targets with name '{_name}' running. Unable to connect.", new { _name = name});
+					SendOutput("stdout", "UnityDebug: Multiple targets with name '" + name + "' running. Unable to connect");
+					return;
+				}
+				process = processes[0];
+			} else {
+				foreach(var p in processes) {
+					if(p.Id == pid) {
+						SendOutput("stdout", "UnityDebug: Selecing Unity process '" + p.Name + "' with pid (" + p.Id + ")\n");
+						process = p;
+						break;
+					}
+				}
+				if(process == null) {
+					SendErrorResponse (response, 8001, "Could not find the target '{_name}' with process Id '{_pid}'. Unable to connect.", new { _name = name, _pid = pid});
+					return;
+				}
+			}
 
 			var attachInfo = UnityProcessDiscovery.GetUnityAttachInfo (process.Id, ref unityDebugConnector);
 
